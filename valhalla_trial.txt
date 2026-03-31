@@ -1,0 +1,18 @@
+1.osm 다운
+osm.pbf= https://download.geofabrik.de/?form=MG0AV3&utm_source=copilot.com
+Asia>SouthKorea 기준 버전 260329
+
+2.docker다운
+
+3.서버실행
+이미지 받기 : docker pull ghcr.io/valhalla/valhalla:latest
+설정파일 형성 : docker run -it --rm -v %cd%:/data ghcr.io/valhalla/valhalla:latest valhalla_build_config --mjolnir-tile-dir /data/valhalla_tiles --mjolnir-tile-extract /data/tiles.tar
+타일 빌드 : docker run -it --rm -v %cd%:/data ghcr.io/valhalla/valhalla:latest valhalla_build_tiles -c /data/valhalla.json /data/asia-260329.osm.pbf
+서버실행 : docker run -it --rm -p 8002:8002 -v %cd%:/data ghcr.io/valhalla/valhalla:latest valhalla_service /data/valhalla.json
+
+3-1 오류
+InvalidURL: Failed to parse: http://localhost:80002/route
+>포트번호 잘못 입력
+
+3-2재실행
+
