@@ -1,0 +1,22 @@
+export TRANSFORMERS_CACHE=/data/srain0723/downloads/cache/huggingface/hub\
+export PYTHONPATH=/data/srain0723/downloads/transformers/src:\
+/data/srain0723/downloads/huggingface_hub/src:\
+/data/srain0723/downloads/tokenizers/bindings/python:\
+/data/srain0723/downloads/sentencepiece/python:\
+/data/srain0723/downloads/safetensors/bindings/python:\
+/data/srain0723/downloads/tqdm:\
+/data/srain0723/downloads/tqdm-4.66.0.dist-info:\
+/data/srain0723/downloads:\
+/data/srain0723/downloads/filelock:\
+/data/srain0723/downloads/filelock/src:\
+/data/srain0723/downloads/filelock-3.12.0.dist-info:\
+/data/srain0723/downloads/regex:\
+/data/srain0723/downloads/regex-2026.4.0.dist-info:\
+/data/srain0723/downloads/torch_cuda:\
+/data/srain0723/downloads/torch_build/lib/python3.8/site-packages:\
+/data/srain0723/downloads/torch_install:\
+/data/srain0723/downloads/transformers_install:\
+/data/srain0723/downloads/huggingface_hub_install:\
+/data/srain0723/downloads/huggingface_hub_install/bin:
+
+
