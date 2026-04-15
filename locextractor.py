@@ -5,7 +5,7 @@ import re,json
 
 def locextractor(userinput):
     # 모델
-    local_path="C:/Users/safas/Downloads/Qwen2.5-3B"
+    local_path="/local_datasets/Qwen2.5-3B/"
     model_id = "Qwen/Qwen2.5-3B" # Reverting to the original Qwen3.5-2B model
     model = AutoModelForCausalLM.from_pretrained(local_path, dtype=torch.float16, local_files_only=True).to("cuda")
     tokenizer = AutoTokenizer.from_pretrained(local_path, local_files_only=True)
