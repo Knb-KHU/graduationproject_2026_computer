@@ -1,6 +1,6 @@
 srun --gres=gpu:1 --cpus-per-gpu=8 --mem-per-gpu=32G -p debug_ce_ugrad -w moana-u4  --pty $SHELL
 conda create -n ex
-conda activat ex
+conda activate ex
 conda install pip python=3.10 -y
 cd /data/srain0723/repos/graduationproject_2026_computer/
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
