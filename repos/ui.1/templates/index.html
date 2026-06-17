@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>동적</title>
+    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=73abfdfca945ea41db16c855d304cbe6"></script>
+    <style>
+        body { display: flex; font-family: 'Segoe UI', sans-serif; background-color: #fdfdfd; margin:0; }
+        #map { width: 70%; height: 100vh; }
+        #selectors { width: 30%; padding: 20px; background-color: #FFFDE7; overflow-y: auto; }
+        .selector-block { background: #ffffff; border-radius: 8px; padding: 10px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .info-block { text-align: center; margin: 8px 0; font-size: 13px; color: #444; background: #fff; border-radius: 6px; padding: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        select { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #ddd; }
+.info-block {
+    text-align: center;
+    margin: 8px 0;
+    font-size: 13px;
+    color: #444;
+    background: #fff;
+    border-radius: 6px;
+    padding: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.4s ease;
+}
+
+.info-block.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* 선택지 블록 hover 효과 */
+.selector-block:hover {
+    transform: scale(1.02);
+    transition: transform 0.2s ease;
+}
+
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div id="selectors"></div>
+
+<script>
+    var coords = {{ coords|tojson }};
+    var selectedPoints = coords.map(group => group[0]); // 기본 선택
+    var mapContainer = document.getElementById('map');
+    var mapOption = { center: new kakao.maps.LatLng(selectedPoints[0].lat, selectedPoints[0].lon), level: 4 };
+    var map = new kakao.maps.Map(mapContainer, mapOption);
+
+    var markers = [];
+
+    // 선택지와 구간 정보 블록 생성
+    var selectorsDiv = document.getElementById("selectors");
+    coords.forEach(function(group, k) {
+        var block = document.createElement("div");
+        block.className = "selector-block";
+
+        var select = document.createElement("select");
+        group.forEach(function(point, idx) {
+            var option = document.createElement("option");
+            option.value = idx;
+            option.text = `${point["장소명"]} (${point["lat"]}, ${point["lon"]})`;
+            select.appendChild(option);
+        });
+        select.onchange = function() {
+            var idx = parseInt(this.value);
+            selectedPoints[k] = group[idx];
+            drawRoute();
+        };
+        block.appendChild(select);
+        selectorsDiv.appendChild(block);
+
+        // 선택지 사이에 구간 정보 div 추가
+        if(k < coords.length - 1) {
+            var infoBlock = document.createElement("div");
+            infoBlock.className = "info-block";
+            infoBlock.id = `info-between-${k}`;
+            selectorsDiv.appendChild(infoBlock);
+        }
+    });
+
+    var polylines = []; // 전역 선언
+
+function drawRoute() {
+    markers.forEach(m => m.setMap(null));
+    markers = [];
+    polylines.forEach(p => p.setMap(null));
+    polylines = [];
+
+    fetch("/route", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({points: selectedPoints})
+    })
+    .then(res => res.json())
+    .then(data => {
+        var route = data.routes[0];
+        var bounds = new kakao.maps.LatLngBounds();
+
+        // ✅ sections 그리기
+        route.sections.forEach((section, idx) => {
+            var linePath = [];
+            section.roads.forEach(road => {
+                var vertexes = road.vertexes;
+                for (var i=0; i<vertexes.length; i+=2) {
+                    linePath.push(new kakao.maps.LatLng(vertexes[i+1], vertexes[i]));
+                }
+            });
+            var ratio = idx / (route.sections.length - 1);
+            var color = interpolateColor("#FFC0CB", "#FF0000", ratio);
+
+            var polyline = new kakao.maps.Polyline({
+                path: linePath,
+                strokeWeight: 5,
+                strokeColor: color,
+                strokeOpacity: 0.9,
+                strokeStyle: 'solid'
+            });
+            polyline.setMap(map);
+            polylines.push(polyline);
+
+            linePath.forEach(p => bounds.extend(p));
+        });
+
+        map.setBounds(bounds);
+
+        // ✅ 출발지/도착지 마커 (null 체크 필수)
+        if(route.summary.origin){
+            var origin = route.summary.origin;
+            var originMarker = new kakao.maps.Marker({
+                position: new kakao.maps.LatLng(origin.y, origin.x)
+            });
+            originMarker.setMap(map);
+            markers.push(originMarker);
+        }
+
+        if(route.summary.destination){
+            var destination = route.summary.destination;
+            var destMarker = new kakao.maps.Marker({
+                position: new kakao.maps.LatLng(destination.y, destination.x)
+            });
+            destMarker.setMap(map);
+            markers.push(destMarker);
+        }
+
+        // ✅ 경유지 마커
+        if(route.summary.waypoints && route.summary.waypoints.length > 0){
+            route.summary.waypoints.forEach(wp => {
+                var wpMarker = new kakao.maps.Marker({
+                    position: new kakao.maps.LatLng(wp.y, wp.x)
+                });
+                wpMarker.setMap(map);
+                markers.push(wpMarker);
+            });
+        }
+
+        // ✅ 구간 정보 표시
+        route.sections.forEach((section, idx) => {
+            var distance = (section.distance / 1000).toFixed(2);
+            var duration = Math.round(section.duration / 60);
+            var infoBlock = document.getElementById(`info-between-${idx}`);
+            if(infoBlock) {
+                var info = section.extra_info || {};
+                infoBlock.innerHTML = `
+                    📏 ${distance}km &nbsp; ⏱ ${duration}분 ⭐ ${info["Google평점"] || "-"} (${info["리뷰수"] || 0} 리뷰) <br>
+                    만족도: ${info["최종만족도"] || "-"}% <br>
+                    리뷰: ${info["리뷰내용"] || ""}
+                `;
+                infoBlock.classList.add("show");
+            }
+        });
+    });
+}
+
+
+
+
+
+
+    // 색상 보간 함수
+    function interpolateColor(color1, color2, factor) {
+        var c1 = parseInt(color1.slice(1), 16);
+        var c2 = parseInt(color2.slice(1), 16);
+
+        var r1 = (c1 >> 16) & 0xFF, g1 = (c1 >> 8) & 0xFF, b1 = c1 & 0xFF;
+        var r2 = (c2 >> 16) & 0xFF, g2 = (c2 >> 8) & 0xFF, b2 = c2 & 0xFF;
+
+        var r = Math.round(r1 + factor * (r2 - r1));
+        var g = Math.round(g1 + factor * (g2 - g1));
+        var b = Math.round(b1 + factor * (b2 - b1));
+
+        return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+
+    // 초기 경로 표시
+    drawRoute();
+</script>
+</body>
+</html>
