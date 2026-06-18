@@ -53,7 +53,12 @@ def get_route():
             # ✅ waypoints에 extra_info 병합
             for wp in data_chunk["routes"][0]["summary"].get("waypoints", []):
                 for p in chunk:
-                    if abs(wp["x"] - p["lon"]) < 1e-5 and abs(wp["y"] - p["lat"]) < 1e-5:
+                    try:
+                        lon = float(p["lon"])
+                        lat = float(p["lat"])
+                    except (TypeError, ValueError):
+                        continue
+                    if abs(wp["x"] - lon) < 1e-5 and abs(wp["y"] - lat) < 1e-5:
                         wp["extra_info"] = {
                             "Google평점": p.get("Google평점"),
                             "리뷰수": p.get("리뷰수"),

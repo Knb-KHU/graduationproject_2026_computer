@@ -138,18 +138,17 @@ def routes(slat,slon,dlat,dlon):
     else:
         print(f"Error: {response.status_code}")
         return None
-def get_target_category(current_hour,category):
+def get_target_category(category):
     if category=="AT4":
-        return "AT4",["가성비","전망","특이성","지역성"]
+        return ["가성비","전망","특이성","지역성"]
     elif category=="AT5":
-        return "AT5", ["가성비","전망","특이성","문화적가치"]
+        return ["가성비","전망","특이성","문화적가치"]
+    elif category=="FD6":
+        return ["청결도","가성비","맛","서비스"] # 음식점
+    elif category=="AD5":
+        return ["청결도","가성비","부가시설","서비스",""] # 숙박
     else:
-        if 11 <= current_hour <= 13:
-            return "FD6" , ["청결도","가성비","맛","서비스"] # 음식점
-        elif 19 <= current_hour <= 24 or 0 <= current_hour <= 1:
-            return "AD5",["청결도","가성비","부가시설","서비스",""] # 숙박
-        else:
-            return "CE7",["청결도","가성비","맛","서비스"]  # 기본값: 카페 (사용자 선호 카테고리로 변경 가능)
+        return ["청결도","가성비","맛","서비스"]  # 기본값: 카페 (사용자 선호 카테고리로 변경 가능)
 
 def get_kakao_places(lat, lng, category_code):
     """카카오맵 API를 사용하여 반경 1km 이내 10곳 검색"""
@@ -217,7 +216,7 @@ def reviewcountapply(google_rating, review_count, user_preference_score):
 
 def run_evaluation_system(start_lat, start_lng, ttime, user_pref=[],user_pref_weight=1.2,category=""):
     """시스템 메인 실행 함수"""
-    category,criteria = get_target_category(ttime,category)
+    criteria = get_target_category(category)
     for item in user_pref:
         criteria.append(item)
     
@@ -343,20 +342,23 @@ def findroute(U,m,t):
         day=int(input("여행일자를 입력해주세요:"))
         
         totime+=ttime
-        h=run_evaluation_system(dlat,dlon,totime//3600,U.pref,U.weight)
+        category="AD5"
+        h=run_evaluation_system(dlat,dlon,totime//3600,U.pref,U.weight,category)
         route.append(h)
         hlat,hlon=h[0]["lat"],h[0]["lon"]
         tlen,ttime=routes(route[1][0]["lat"],route[1][0]["lon"],hlat,hlon)
         totime+=ttime+5400
         rlat,rlon=hlat,hlon
         for d in range (day):
-            for i in range(3):
-                r=run_evaluation_system(rlat,rlon,totime//3600,U.pref,U.weight)
-                rlat,rlon=r[0]["lat"],r[0]["lon"]
-                tlen,ttime=routes(route[-1][0]["lat"], route[-1][0]["lon"],rlat,rlon)
-                route.append(r)
-                totime+=ttime+7200
-                r=run_evaluation_system(rlat,rlon,totime//3600,U.pref,U.weight,"AT4")
+            for i in range(6):
+                if (8 <= totime//3600 <= 9 or 11 <= totime//3600 <= 13 or 17<= totime//3600 <= 18)and category!="FD6":
+                    category="FD6"
+                elif category!="CE7":
+                    category="CE7"
+                elif category!="AT4":
+                    category="AT4"
+                else:category="AT5"
+                r=run_evaluation_system(rlat,rlon,totime//3600,U.pref,U.weight,category)
                 rlat,rlon=r[0]["lat"],r[0]["lon"]
                 tlen,ttime=routes(route[-1][0]["lat"], route[-1][0]["lon"],rlat,rlon)
                 route.append(r)

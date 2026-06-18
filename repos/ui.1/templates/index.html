@@ -164,9 +164,9 @@ function drawRoute() {
             if(infoBlock) {
                 var info = section.extra_info || {};
                 infoBlock.innerHTML = `
-                    📏 ${distance}km &nbsp; ⏱ ${duration}분 ⭐ ${info["Google평점"] || "-"} (${info["리뷰수"] || 0} 리뷰) <br>
-                    만족도: ${info["최종만족도"] || "-"}% <br>
-                    리뷰: ${info["리뷰내용"] || ""}
+                    📏 ${distance}km &nbsp; ⏱ ${duration}분 ⭐ ${wp.extra_info["Google평점"] || "-"} (${wp.extra_info["리뷰수"] || 0} 리뷰) <br>
+            만족도: ${wp.extra_info["최종만족도"] || "-"}% <br>
+            리뷰: ${wp.extra_info["리뷰내용"] || ""}
                 `;
                 infoBlock.classList.add("show");
             }
