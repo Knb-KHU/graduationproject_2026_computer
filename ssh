@@ -6,3 +6,7 @@ cd /data/srain0723/repos/graduationproject_2026_computer/
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip install transformers
 pip install requests
+
+srun --gres=gpu:1 --cpus-per-gpu=8 --mem-per-gpu=32G -p debug_ce_ugrad -w moana-u4  --pty $SHELL
+conda activate ex
+cd /data/srain0723/repos/graduationproject_2026_computer/ui.1/
