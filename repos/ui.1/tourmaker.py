@@ -23,7 +23,7 @@ class User:
         self.weight=weight
         self.tlist=tlist
 
-def revaluater(question, answers, criteria):
+def revaluater(question, answers, criteria,pref,weight):
     prompt = f"""
     You are an impartial judge evaluating multiple answers to the same question.
     Question: {question}
@@ -62,39 +62,57 @@ def revaluater(question, answers, criteria):
     outputs = model.generate(**inputs, max_new_tokens=2048,do_sample=False,temperature=0.0,)
     response = tokenizer.decode(outputs[0], skip_special_tokens=True)
     res=response
+    print(res)
     match = re.findall(r"\"answer_id\": 1,.*?ranking", res, re.DOTALL)
-    
     try:
-        m = match[0].replace("json","").replace("`","")
+        if match:
+            m = match[0].replace("json","").replace("`","")
+        else:
+            return {
+        "individual_results": [0]*10,
+        "ensemble_scores": [0]*10,
+        "specific_scores":[0]*10,
+        "total_scores":[0]*10
+        }
     except IndexError:
-        return {
-        "individual_results": None,
-        "ensemble_scores": None,
-        "specific_scores":None
-    }
+        m=match.replace("json","").replace("`","")
 
-
-
-    m=match[0].replace("json","").replace("`","")
-    j=re.findall(r"overall\": *?,",m,re.DOTALL)
-    for i in range (len(j)):
-        j[i]=float(j[i].replace("overall\": ","").replace(",",""))
+    ens=re.findall(r"overall.*?,",m,re.DOTALL)
+    for i in range (len(ens)):
+        ens[i]=float(ens[i].replace("overall\": ","").replace(",","").replace(" ",""))
+    
     sp=[]
     for i in range (len(criteria)):
         k=re.findall(rf"\"{criteria[i]}\":\s*\d+", m, re.DOTALL)
+        print(k)
         for t in range (len(k)):
             k[t]=float(k[t].replace(f"\"{criteria[i]}\":","").replace(",",""))
-    
-
+        sp.append(k)
+    score=[0]*10
+    for j in range (len(criteria)):
+        if sp[j]!=[]:
+            for i in range (len(sp[j])):
+                score[i]+=sp[j][i]
+                if criteria[j] in pref:
+                    score[i]+=sp[j][i]*(weight-1)
+        """
     return {
         "individual_results": res,
-        "ensemble_scores": j,
-        "specific_scores":sp
+        "ensemble_scores": j
     }
+"""
+    return {
+        "individual_results": res,
+        "ensemble_scores": ens,
+        "specific_scores":sp,
+        "total_scores":score
+    }
+    
 
 
 
 placesapi = "AIzaSyCt3hPrnbAejMixTLJlP2xDeZKOq-n_EGw"
+
 restapi = "3b06b2ec80486b28690f23d7c000ee3e"
 
 def searchloc(query):
@@ -105,9 +123,13 @@ def searchloc(query):
     response = requests.get(url, params=params, headers=headers)
     if(response.status_code==200):
         p=response.json().get('documents', [])
-        name=p[0]['place_name']
-        lat,lon=p[0]['y'],p[0]['x']
-        return lat,lon,name
+        try:
+            name=p[0]['place_name']
+            lat,lon=p[0]['y'],p[0]['x']
+            return lat,lon,name
+        except:
+            print("없는 장소입니다.")
+            return 0,0,None
     else:
         print("error:status_error")
         return 0,0,0
@@ -199,7 +221,7 @@ def get_google_rating(place_name, lat, lng):
     
     return result.get('rating', 0), result.get('userRatingCount', 0),result.get('reviews', [])
 
-def reviewcountapply(google_rating, review_count, user_preference_score):
+def reviewcountapply(total_rating, review_count, user_preference_score,google_rating):
     """평점 정량화 및 사용자 만족도 계산 (베이지안 평균법 응용)"""
     m = 10    # 신뢰도를 위한 최소 리뷰 개수 가중치
     C = 3.0   # 평점 데이터가 없을 때의 기본 점수
@@ -207,18 +229,19 @@ def reviewcountapply(google_rating, review_count, user_preference_score):
     if review_count == 0:
         adjusted_rating = C
     else:
-        # 리뷰 수가 많을수록 실제 평점에 가중치를 둠
-        adjusted_rating = (review_count / (review_count + m) * google_rating) + (m / (review_count + m) * C)
+        adjusted_rating = (review_count / (review_count + m) * total_rating) + (m / (review_count + m) * C)
     
-    # 사용자 선호도(1.0 ~ 1.5)를 곱하여 최종 점수 산출
-    final_score = adjusted_rating * user_preference_score
+    final_score = adjusted_rating * user_preference_score +google_rating
     return round(final_score, 2)
 
 def run_evaluation_system(start_lat, start_lng, ttime, user_pref=[],user_pref_weight=1.2,category=""):
     """시스템 메인 실행 함수"""
     criteria = get_target_category(category)
     for item in user_pref:
-        criteria.append(item)
+        if item in criteria:
+            user_pref_weight+=0.5
+        else:
+            criteria.append(item)
     
     print(f"--- 현재 시간: {ttime}시 | 선택된 카테고리: {category} ---")
     
@@ -254,11 +277,13 @@ def run_evaluation_system(start_lat, start_lng, ttime, user_pref=[],user_pref_we
             "리뷰내용":revtext
         })
     
-    ensemble_result = revaluater("How was the place you experienced", revtexts, criteria)
+    ensemble_result = revaluater("How was the place you experienced", revtexts, criteria,user_pref,user_pref_weight)
+    print(ensemble_result["ensemble_scores"])
     for i in range (len(ensemble_result["ensemble_scores"])):
-        results[i]["상대평점"]=ensemble_result["ensemble_scores"][i]
-        satisfaction_score = reviewcountapply(ensemble_result["ensemble_scores"][i],results[i]["리뷰수"], user_pref_weight)
+        results[i]["상대평점"]=ensemble_result["total_scores"][i]
+        satisfaction_score = reviewcountapply(ensemble_result["total_scores"][i],results[i]["리뷰수"], user_pref_weight,results[i]["Google평점"])
         results[i]["최종만족도"]=satisfaction_score
+        print(results[i]["최종만족도"])
     # 최종 점수순 정렬
     results.sort(key=lambda x: x.get('최종만족도', 0), reverse=True)
 
@@ -386,3 +411,4 @@ def findroute(U,m,t):
         U.tlist=route
         print(route)
         return U.tlist
+

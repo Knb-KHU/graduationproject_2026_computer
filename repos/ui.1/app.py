@@ -8,7 +8,7 @@ restapi = "3b06b2ec80486b28690f23d7c000ee3e"
 
 @app.route("/")
 def index():
-    user1=User(['청결도','인스타감성'],1.5)
+    user1=User(['간지','인스타감성'],1.5)
     coords=findroute(user1,m,t)
     
     return render_template("index.html", coords=coords)
@@ -17,7 +17,7 @@ def index():
 @app.route("/route", methods=["POST"])
 def get_route():
     data = request.json
-    points = data["points"]  # [{"lat": ..., "lon": ...}, ...]
+    points = data["points"]
 
     url = "https://apis-navi.kakaomobility.com/v1/directions"
     headers = {"Authorization": f"KakaoAK {restapi}"}
@@ -45,28 +45,11 @@ def get_route():
 
         
         if "routes" in data_chunk and data_chunk["routes"]:
-            all_sections.extend(data_chunk["routes"][0]["sections"])
             if summary["origin"] is None:
                 summary["origin"] = data_chunk["routes"][0]["summary"]["origin"]
-            summary["destination"] = data_chunk["routes"][0]["summary"]["destination"]
-
-            # ✅ waypoints에 extra_info 병합
-            for wp in data_chunk["routes"][0]["summary"].get("waypoints", []):
-                for p in chunk:
-                    try:
-                        lon = float(p["lon"])
-                        lat = float(p["lat"])
-                    except (TypeError, ValueError):
-                        continue
-                    if abs(wp["x"] - lon) < 1e-5 and abs(wp["y"] - lat) < 1e-5:
-                        wp["extra_info"] = {
-                            "Google평점": p.get("Google평점"),
-                            "리뷰수": p.get("리뷰수"),
-                            "최종만족도": p.get("최종만족도"),
-                            "리뷰내용": p.get("리뷰내용")
-                        }
-            summary["waypoints"].extend(data_chunk["routes"][0]["summary"].get("waypoints", []))
-
+                summary["destination"] = data_chunk["routes"][0]["summary"]["destination"]
+            all_sections.extend(data_chunk["routes"][0]["sections"])
+            
 
     return jsonify({
         "routes": [{

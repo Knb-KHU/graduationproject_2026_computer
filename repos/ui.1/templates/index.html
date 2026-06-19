@@ -9,6 +9,7 @@
         #map { width: 70%; height: 100vh; }
         #selectors { width: 30%; padding: 20px; background-color: #FFFDE7; overflow-y: auto; }
         .selector-block { background: #ffffff; border-radius: 8px; padding: 10px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .info-block-review { text-align: center; margin: 8px 0; font-size: 10px; color: #444; background: #fff; border-radius: 6px; padding: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .info-block { text-align: center; margin: 8px 0; font-size: 13px; color: #444; background: #fff; border-radius: 6px; padding: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         select { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #ddd; }
 .info-block {
@@ -30,7 +31,7 @@
     transform: translateY(0);
 }
 
-/* 선택지 블록 hover 효과 */
+
 .selector-block:hover {
     transform: scale(1.02);
     transition: transform 0.2s ease;
@@ -51,39 +52,59 @@
 
     var markers = [];
 
-    // 선택지와 구간 정보 블록 생성
     var selectorsDiv = document.getElementById("selectors");
     coords.forEach(function(group, k) {
-        var block = document.createElement("div");
-        block.className = "selector-block";
+    var block = document.createElement("div");
+    block.className = "selector-block";
 
-        var select = document.createElement("select");
-        group.forEach(function(point, idx) {
-            var option = document.createElement("option");
-            option.value = idx;
-            option.text = `${point["장소명"]} (${point["lat"]}, ${point["lon"]})`;
-            select.appendChild(option);
-        });
-        select.onchange = function() {
-            var idx = parseInt(this.value);
-            selectedPoints[k] = group[idx];
-            drawRoute();
-        };
-        block.appendChild(select);
-        selectorsDiv.appendChild(block);
-
-        // 선택지 사이에 구간 정보 div 추가
-        if(k < coords.length - 1) {
-            var infoBlock = document.createElement("div");
-            infoBlock.className = "info-block";
-            infoBlock.id = `info-between-${k}`;
-            selectorsDiv.appendChild(infoBlock);
-        }
+    var select = document.createElement("select");
+    group.forEach(function(point, idx) {
+        var option = document.createElement("option");
+        option.value = idx;
+        option.text = `${point["장소명"]} (${point["lat"]}, ${point["lon"]})`;
+        select.appendChild(option);
     });
 
-    var polylines = []; // 전역 선언
 
+    var reviewBlock = document.createElement("div");
+    reviewBlock.className = "info-block-review";
+    block.appendChild(select);
+    block.appendChild(reviewBlock);
+    selectorsDiv.appendChild(block);
+
+
+    var initPoint = group[0];
+    reviewBlock.innerHTML = `
+        ⭐ ${initPoint["Google평점"] || "-"} (${initPoint["리뷰수"] || 0}리뷰)<br>
+            상대평점: ${initPoint["최종만족도"] || "-"}<br>
+        리뷰: ${(initPoint["리뷰내용"] || "").slice(0,100)}
+    `;
+
+
+    select.onchange = function() {
+        var idx = parseInt(this.value);
+        selectedPoints[k] = group[idx];
+        var point = group[idx];
+        reviewBlock.innerHTML = `
+            ⭐ ${point["Google평점"] || "-"} (${point["리뷰수"] || 0} 리뷰)<br>
+            상대평점: ${point["최종만족도"] || "-"}<br>
+            리뷰: ${(point["리뷰내용"] || "").slice(0,100)}
+        `;
+        drawRoute();
+    };
+
+    if(k < coords.length - 1) {
+        var infoBlock = document.createElement("div");
+        infoBlock.className = "info-block";
+        infoBlock.id = `info-between-${k}`;
+        selectorsDiv.appendChild(infoBlock);
+    }
+});
+
+    var polylines = [];
+    
 function drawRoute() {
+
     markers.forEach(m => m.setMap(null));
     markers = [];
     polylines.forEach(p => p.setMap(null));
@@ -99,7 +120,6 @@ function drawRoute() {
         var route = data.routes[0];
         var bounds = new kakao.maps.LatLngBounds();
 
-        // ✅ sections 그리기
         route.sections.forEach((section, idx) => {
             var linePath = [];
             section.roads.forEach(road => {
@@ -108,6 +128,7 @@ function drawRoute() {
                     linePath.push(new kakao.maps.LatLng(vertexes[i+1], vertexes[i]));
                 }
             });
+
             var ratio = idx / (route.sections.length - 1);
             var color = interpolateColor("#FFC0CB", "#FF0000", ratio);
 
@@ -122,11 +143,20 @@ function drawRoute() {
             polylines.push(polyline);
 
             linePath.forEach(p => bounds.extend(p));
+
+            var distance = (section.distance / 1000).toFixed(2);
+            var duration = Math.round(section.duration / 60);
+            var infoBlock = document.getElementById(`info-between-${idx}`);
+            if(infoBlock && section.extra_info_list){
+                let html = `📏 ${distance}km &nbsp; ⏱ ${duration}분 <br>`;
+                infoBlock.innerHTML = html;
+                infoBlock.classList.add("show");
+            }
+
         });
 
         map.setBounds(bounds);
 
-        // ✅ 출발지/도착지 마커 (null 체크 필수)
         if(route.summary.origin){
             var origin = route.summary.origin;
             var originMarker = new kakao.maps.Marker({
@@ -145,36 +175,18 @@ function drawRoute() {
             markers.push(destMarker);
         }
 
-        // ✅ 경유지 마커
         if(route.summary.waypoints && route.summary.waypoints.length > 0){
-            route.summary.waypoints.forEach(wp => {
+            route.summary.waypoints.forEach((wp, idx) => {
                 var wpMarker = new kakao.maps.Marker({
                     position: new kakao.maps.LatLng(wp.y, wp.x)
                 });
                 wpMarker.setMap(map);
                 markers.push(wpMarker);
+                
             });
         }
-
-        // ✅ 구간 정보 표시
-        route.sections.forEach((section, idx) => {
-            var distance = (section.distance / 1000).toFixed(2);
-            var duration = Math.round(section.duration / 60);
-            var infoBlock = document.getElementById(`info-between-${idx}`);
-            if(infoBlock) {
-                var info = section.extra_info || {};
-                infoBlock.innerHTML = `
-                    📏 ${distance}km &nbsp; ⏱ ${duration}분 ⭐ ${wp.extra_info["Google평점"] || "-"} (${wp.extra_info["리뷰수"] || 0} 리뷰) <br>
-            만족도: ${wp.extra_info["최종만족도"] || "-"}% <br>
-            리뷰: ${wp.extra_info["리뷰내용"] || ""}
-                `;
-                infoBlock.classList.add("show");
-            }
-        });
     });
 }
-
-
 
 
 
@@ -193,6 +205,7 @@ function drawRoute() {
 
         return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
     }
+
 
     // 초기 경로 표시
     drawRoute();
