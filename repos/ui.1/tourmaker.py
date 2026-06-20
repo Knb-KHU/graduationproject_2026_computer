@@ -111,9 +111,9 @@ def revaluater(question, answers, criteria,pref,weight):
 
 
 
-placesapi = "AIzaSyCt3hPrnbAejMixTLJlP2xDeZKOq-n_EGw"
+placesapi = ""
 
-restapi = "3b06b2ec80486b28690f23d7c000ee3e"
+restapi = ""
 
 def searchloc(query):
     url="https://dapi.kakao.com/v2/local/search/keyword.json"
